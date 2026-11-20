@@ -218,7 +218,7 @@ class ScopecamApp(Adw.Application):
                     return fail(err)
                 self._save_screenshot(surface, target, copy, selector)
 
-            grab_frame(stream, grabbed)
+            grab_frame(stream, grabbed, window=target.kind in ("window", "pick-window"))
 
         self.backend.open_stream(target, cursor, False, on_stream)
 
@@ -266,7 +266,8 @@ class ScopecamApp(Adw.Application):
             try:
                 recorder = Recorder(stream, path, encoding=encoding, fps=cfg.framerate,
                                     desktop_audio=cfg.record_desktop_audio, microphone=cfg.record_microphone,
-                                    overlay=overlay, on_finished=self._recording_finished)
+                                    overlay=overlay, on_finished=self._recording_finished,
+                                    window=target.kind in ("window", "pick-window"))
             except GLib.Error as e:
                 stream.close()
                 return self._fail(f"Could not set up recording: {e.message}")

@@ -6,9 +6,12 @@ from dataclasses import dataclass
 import gi
 
 gi.require_version("Gst", "1.0")
+gi.require_version("GstVideo", "1.0")
 from gi.repository import GLib, Gst  # noqa: E402
 
-from .capture import pipewire_source  # noqa: E402
+from gi.repository import GstVideo  # noqa: E402
+
+from .capture import crop_meta, pipewire_source, window_region  # noqa: E402
 
 # SVT-AV1 prints a banner and settings dump on every start; keep only errors.
 os.environ.setdefault("SVT_LOG", "1")
@@ -108,8 +111,11 @@ class Recorder:
     """Records `stream` to `path`. on_finished(path | None, error | None) runs on the main loop."""
 
     def __init__(self, stream, path, encoding=DEFAULT_ENCODING, fps=30, desktop_audio=False, microphone=False,
-                 overlay=None, on_finished=None):
+                 overlay=None, on_finished=None, window=False):
+        """window: the stream is a window, sent by Mutter inside a monitor-sized frame;
+        crop to the window (following it if it is resized)."""
         self.stream = stream
+        self.window = window
         self.path = path
         self.overlay = overlay
         self.on_finished = on_finished
@@ -122,6 +128,7 @@ class Recorder:
         self._stopping = False
         self._done = False
         self._sized = False
+        self._window_meta = False  # last crop meta seen (False: none yet)
 
         # With an overlay, keep frames flowing at the target rate so animations are smooth
         # on a static screen; otherwise once a second is enough.
@@ -129,7 +136,8 @@ class Recorder:
         if overlay:
             src = src.replace("keepalive-time=1000", f"keepalive-time={max(10, 1000 // fps)}")
         video = (
-            f"{src} name=vsrc ! videoconvert chroma-mode=none dither=none ! video/x-raw,format=BGRx "
+            f"{src} name=vsrc ! videoconvert chroma-mode=none dither=none "
+            f"! video/x-raw,format={'BGRA' if window else 'BGRx'} "
             "! videocrop name=crop ! videoscale add-borders=true ! capsfilter name=size "
             f"! videorate ! video/x-raw,framerate={fps}/1 "
             + ("! cairooverlay name=overlay " if overlay else "")
@@ -155,8 +163,11 @@ class Recorder:
                 parts += [f"{s} ! amix." for s in sources]
 
         self.pipeline = Gst.parse_launch(" ".join(parts))
-        self.pipeline.get_by_name("crop").get_static_pad("sink").add_probe(
-            Gst.PadProbeType.EVENT_DOWNSTREAM, self._on_event)
+        crop_pad = self.pipeline.get_by_name("crop").get_static_pad("sink")
+        if window:
+            crop_pad.add_probe(Gst.PadProbeType.BUFFER, self._on_window_buffer)
+        else:
+            crop_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self._on_event)
         if overlay:
             ov = self.pipeline.get_by_name("overlay")
             ov.connect("draw", overlay.draw)
@@ -199,11 +210,39 @@ class Recorder:
         self._sized = True
         return Gst.PadProbeReturn.OK
 
+    def _on_window_buffer(self, pad, info):
+        buf = info.get_buffer()
+        meta = crop_meta(buf)
+        if meta == self._window_meta:
+            return Gst.PadProbeReturn.OK
+        # First frame, or the window was resized: find it in the frame again.
+        self._window_meta = meta
+        vinfo = GstVideo.VideoInfo.new_from_caps(pad.get_current_caps())
+        x, y, w, h = window_region(buf, vinfo)
+        if not self._sized:
+            # H.264 wants even dimensions.
+            w -= w % 2
+            h -= h % 2
+            self.pipeline.get_by_name("size").set_property(
+                "caps", Gst.Caps.from_string(f"video/x-raw,width={w},height={h}"))
+            self.out_size = (w, h)
+            self._sized = True
+        crop = self.pipeline.get_by_name("crop")
+        crop.set_property("left", x)
+        crop.set_property("top", y)
+        crop.set_property("right", max(0, vinfo.width - x - w))
+        crop.set_property("bottom", max(0, vinfo.height - y - h))
+        # The new crop applies from the next frame; don't let this one through uncropped.
+        return Gst.PadProbeReturn.DROP
+
     def to_video(self, x, y, source_rect=None):
         """Map a logical desktop point to video pixels (None if unknown)."""
         rect = source_rect or self.stream.source_rect
         if not rect or not self.out_size:
             return None
+        if self.window:
+            # The video is the window frame, scaled to the output size.
+            return ((x - rect.x) * self.out_size[0] / rect.w, (y - rect.y) * self.out_size[1] / rect.h)
         return ((x - rect.x) * self.scale - self.crop_px[0], (y - rect.y) * self.scale - self.crop_px[1])
 
     def running_time(self):
