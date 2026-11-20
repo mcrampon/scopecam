@@ -1,0 +1,7 @@
+{
+  "name": "Scopecam helper",
+  "description": "Companion for the Scopecam screenshot/screencast app: lets it pick windows, highlight clicks, and adds a stop-recording button to the top bar.",
+  "uuid": "scopecam@mcrampon",
+  "shell-version": ["48", "49", "50", "51"],
+  "version-name": "0.1.0"
+}

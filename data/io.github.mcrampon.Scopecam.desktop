@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=Scopecam
+Comment=Take screenshots and record screencasts
+Exec=scopecam
+Icon=applets-screenshooter-symbolic
+Categories=Utility;Graphics;
+Keywords=screenshot;screencast;record;capture;
+StartupNotify=true
+Actions=screenshot-region;record-region;stop
+
+[Desktop Action screenshot-region]
+Name=Screenshot a region
+Exec=scopecam screenshot --region
+
+[Desktop Action record-region]
+Name=Record a region
+Exec=scopecam record --region
+
+[Desktop Action stop]
+Name=Stop recording
+Exec=scopecam stop

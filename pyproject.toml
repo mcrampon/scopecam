@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scopecam"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[project.scripts]
+scopecam = "scopecam.app:main"
+
+[tool.setuptools]
+packages = ["scopecam", "scopecam.backends"]
