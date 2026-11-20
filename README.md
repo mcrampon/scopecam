@@ -89,3 +89,7 @@ Settings live in `~/.config/scopecam/config.json`. To test the portal backend on
 - GIF export, audio device selection.
 - Window screenshots are opaque: rounded CSD corners come out black instead of transparent.
 - Pause/resume, countdown overlay, a preview/annotate step after screenshots.
+
+## License
+
+[GPL-3.0-or-later](LICENSE)

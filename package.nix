@@ -57,6 +57,7 @@ python3Packages.buildPythonApplication {
   meta = {
     description = "Screenshot and screencast tool for GNOME (and other desktops via portals)";
     mainProgram = "scopecam";
+    license = lib.licenses.gpl3Plus;
     platforms = lib.platforms.linux;
   };
 }
