@@ -24,7 +24,7 @@ let
 in
 python3Packages.buildPythonApplication {
   pname = "scopecam";
-  version = "0.1.0";
+  version = "0.1.1";
   pyproject = true;
 
   src = ./.;
